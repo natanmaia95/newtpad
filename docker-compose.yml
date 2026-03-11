@@ -1,0 +1,46 @@
+
+
+services:
+
+  database:
+    image: mongo:latest
+    volumes:
+      - mongodb_data:/data/db 
+    ports:
+      - "27017:27017"
+
+  mongo-express: # http://localhost:8081
+    image: mongo-express
+    ports:
+      - "8081:8081"
+    environment:
+      - ME_CONFIG_MONGODB_SERVER=database # Must match your mongo service name
+      - ME_CONFIG_MONGODB_URL=mongodb://database:27017
+      - ME_CONFIG_MONGODB_ENABLE_ADMIN="true"
+    depends_on:
+      - database
+
+  cache:
+    image: redis:alpine
+    ports:
+      - "6379:6379"
+
+  server:
+    build: ./server
+    ports:
+      - "3001:3001"
+    environment:
+      - MONGO_URL=mongodb://database:27017/dontpad_clone
+      - REDIS_URL=redis://cache:6379
+    depends_on:
+      - database
+      - cache
+  
+  client:
+    build: ./client
+    stdin_open: true # Required for Vite/React hot reload
+    ports:
+      - "5173:5173"
+
+volumes:
+  mongodb_data: # Define the volume here so Docker manages it globally
