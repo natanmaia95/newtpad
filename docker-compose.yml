@@ -20,10 +20,10 @@ services:
     depends_on:
       - database
 
-  cache:
+  redis:
     image: redis:alpine
-    ports:
-      - "6379:6379"
+    # ports:
+      # - "6379:6379"
 
   server:
     build: ./server
@@ -31,10 +31,10 @@ services:
       - "3001:3001"
     environment:
       - MONGO_URL=mongodb://database:27017/dontpad_clone
-      - REDIS_URL=redis://cache:6379
+      - REDIS_URL=redis://redis:6379
     depends_on:
       - database
-      - cache
+      - redis
   
   client:
     build: ./client

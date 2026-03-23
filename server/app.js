@@ -1,26 +1,36 @@
-const express = require('express')
-const http = require('http')
-const { Server } = require('socket.io')
-const { MongoClient } = require('mongodb')
+import express from 'express'
+import http from 'http'
+import { Server } from 'socket.io'
+import { MongoClient } from 'mongodb'
+import { createClient } from 'redis'
 
-const uri2 = process.env.MONGO_URL
+import { createCache } from './modules/cache.js'
+
+// const express = require('express')
+// const http = require('http')
+// const { Server } = require('socket.io')
+// const { MongoClient } = require('mongodb')
+
+// const { createCache } = require('./modules/cache.js')
+
+
+
+const uri = process.env.MONGO_URL
 // const uri = 'mongodb://admin:pass@localhost:27017/test'
-const mongoClient = new MongoClient(uri2);
 
-// const uri = `mongodb://admin:pass@localhost:27017/?authSource=admin`;
-// const uri = process.env.MONGO_URL
-async function testConnection() {
-  const client = new MongoClient(uri, {
-    connectTimeoutMS: 5000,
-    serverSelectionTimeoutMS: 5000,
-  });
 
+const mongoClient = new MongoClient(uri, {
+  connectTimeoutMS: 5000,
+  serverSelectionTimeoutMS: 5000,
+});
+
+async function initMongoConnection() {
   try {
     console.log("--- Attempting to connect to MongoDB ---");
-    await client.connect();
+    await mongoClient.connect();
     
     // Send a ping to confirm a successful connection
-    await client.db("admin").command({ ping: 1 });
+    await mongoClient.db("admin").command({ ping: 1 });
     console.log("✅ Success! Authentication verified.");
     
   } catch (error) {
@@ -33,21 +43,22 @@ async function testConnection() {
     } else if (error.name === "MongoNetworkError") {
       console.log("\n💡 Hint: This is a network issue. Check if MongoDB is listening on 10.89.1.14.");
     }
-  } finally {
-    await client.close();
   }
 }
-// testConnection()
 
-// await mongoClient.connect();
+await initMongoConnection()
+await mongoClient.db("test").command({ ping: 1 });
 const db = mongoClient.db("test");
 const notes = db.collection("notes");
+
+let rc = await createClient({ url: process.env.REDIS_URL })
+await rc.connect()
+rc.on('error', (err) => console.log('Redis Client Error', err))
+let notesCache = await createCache(rc, db)
 
 const app = express()
 const server = http.createServer(app)
 const io = new Server(server, {"cors": {"origin":"*"}})
-// const io = new Server()
-
 
 
 
@@ -134,19 +145,18 @@ io.on('connection', (socket) => {
     console.log(`User joined room: ${roomId}`)
     socket.join(roomId)
     // let baseContents = {};
-    let baseContent = await tempStore.getFileContent(roomId); 
-    let respContent = {
-      type: "full",
-      ...baseContent
-    }
+    // let baseContent = await tempStore.getFileContent(roomId); 
+    let baseContent = await notesCache.getFileContent(roomId);
+    let respContent = { type: "full", ...baseContent }
     console.log("contents on join: ", baseContent, respContent)
     socket.emit('receive-update', respContent)
   })
 
-  socket.on('text-update', async ({roomId, content}) => {
-    console.log((roomId, content))
-    socket.broadcast.to(roomId).emit('receive-update', content)
-    await tempStore.setFileContent(roomId, content)
+  socket.on('text-update', async ({roomId, changes}) => {
+    console.log((roomId, changes))
+    socket.broadcast.to(roomId).emit('receive-update', changes)
+    await notesCache.updateFileContent(roomId, changes)
+    // await tempStore.setFileContent(roomId, content)
     // tempStore.log()
   })
 

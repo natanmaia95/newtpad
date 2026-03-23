@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import './App.css'
 import io from 'socket.io-client';
-import debounce from 'lodash.debounce'
+import { throttle } from 'lodash-es'
 
 
 const socket = io('http://localhost:3001');
@@ -15,9 +15,9 @@ function App() {
   useEffect(() => {
     socket.emit('join-room', roomId);
 
-    socket.on('receive-update', (newContent) => {
-      console.log("content: ", newContent)
-      if (newContent.text) setText(newContent.text);
+    socket.on('receive-update', (note) => {
+      console.log("content: ", note)
+      if (note.content || value === "") setText(note.content);
     })
 
     return () => {
@@ -27,8 +27,8 @@ function App() {
   }, [roomId]);
 
   const debouncedTextUpdate = useCallback(
-    debounce((newContent) => {
-      socket.emit('text-update', { roomId, content: newContent })
+    throttle((changes) => {
+      socket.emit('text-update', { roomId, changes })
     }, 500 //ms
   ), []);
 
@@ -36,8 +36,8 @@ function App() {
   const handleChange = (e) => {
     const val = e.target.value;
     setText(val);
-    const newContent = { type: "full", text: val };
-    debouncedTextUpdate(newContent);
+    const changes = { type: "full", content: val };
+    debouncedTextUpdate(changes);
     // 
     // socket.emit('text-update', { roomId, content: newContent });
   };
