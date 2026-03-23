@@ -66,3 +66,22 @@ button:focus-visible {
     background-color: #f9f9f9;
   }
 }
+
+
+/* React root */
+#root {
+    box-sizing: border-box;
+    width: 100%;
+
+    margin: 16px;
+    text-align: center;
+
+    display: flex;
+    flex-direction: row;
+    justify-content: center;
+}
+
+#note-textarea {
+    flex-grow: 1;
+    min-height: 90vh;
+}
